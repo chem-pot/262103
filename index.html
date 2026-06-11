@@ -1,0 +1,1688 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>암모니아 합성 공정 시뮬레이터</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #0a0a1a, #1a1a3e, #0d1b2a);
+            min-height: 100vh;
+            color: #fff;
+            padding: 14px;
+            overflow-x: hidden;
+        }
+        h1 {
+            text-align: center;
+            font-size: 1.6rem;
+            color: #a8edea;
+            text-shadow: 0 0 20px rgba(168,237,234,0.5);
+            margin-bottom: 3px;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 0.78rem;
+            color: #99aacc;
+            margin-bottom: 12px;
+        }
+        .rxn-bar {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(168,237,234,0.3);
+            border-radius: 10px;
+            padding: 9px 18px;
+            text-align: center;
+            margin-bottom: 12px;
+            font-size: 1.05rem;
+        }
+        .rxn-bar .chem  { color: #a8edea; font-weight: bold; }
+        .rxn-bar .arrow { color: #f9ca24; margin: 0 8px; }
+        .rxn-bar .exo   { font-size: 0.74rem; color: #f9ca24; margin-top: 3px; }
+
+        /* ── 공급 제어 패널 ── */
+        .supply-control {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        @media(max-width:700px){ .supply-control{ grid-template-columns:1fr; } }
+
+        .supply-card {
+            border-radius: 12px;
+            border: 2px solid;
+            padding: 14px;
+            position: relative;
+            overflow: hidden;
+        }
+        .supply-card.n2-card {
+            background: rgba(40,60,180,0.15);
+            border-color: #4466ff;
+        }
+        .supply-card.h2-card {
+            background: rgba(180,140,0,0.15);
+            border-color: #ffaa00;
+        }
+
+        .supply-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .supply-title {
+            font-size: 1rem;
+            font-weight: bold;
+        }
+        .n2-card .supply-title { color: #aaccff; }
+        .h2-card .supply-title { color: #ffeeaa; }
+
+        .supply-amount {
+            font-size: 0.8rem;
+            color: #ccc;
+        }
+
+        /* 탱크 게이지 */
+        .tank-gauge {
+            width: 100%;
+            height: 18px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 9px;
+            overflow: hidden;
+            margin-bottom: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            position: relative;
+        }
+        .tank-fill {
+            height: 100%;
+            border-radius: 9px;
+            transition: width 0.4s ease;
+            position: relative;
+        }
+        .n2-fill {
+            background: linear-gradient(to right, #2233aa, #6699ff);
+            box-shadow: 0 0 8px rgba(100,150,255,0.6);
+        }
+        .h2-fill {
+            background: linear-gradient(to right, #aa7700, #ffcc44);
+            box-shadow: 0 0 8px rgba(255,200,60,0.6);
+        }
+        .tank-fill-danger {
+            background: linear-gradient(to right, #aa2222, #ff4444) !important;
+            box-shadow: 0 0 8px rgba(255,80,80,0.6) !important;
+            animation: dangerPulse 0.6s ease-in-out infinite alternate;
+        }
+        @keyframes dangerPulse {
+            from { opacity: 0.7; }
+            to   { opacity: 1.0; }
+        }
+        .tank-pct {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%,-50%);
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+        }
+
+        /* 공급 버튼 */
+        .supply-controls-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .supply-btn {
+            padding: 5px 12px;
+            border-radius: 8px;
+            border: none;
+            font-size: 0.78rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .supply-btn:hover {
+            transform: scale(1.05);
+        }
+        .supply-btn:active {
+            transform: scale(0.97);
+        }
+        .supply-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-n2-sm { background: linear-gradient(135deg,#2244cc,#4466ff); color:#fff; }
+        .btn-n2-sm:hover:not(:disabled) { box-shadow: 0 0 10px rgba(80,120,255,0.5); }
+        .btn-h2-sm { background: linear-gradient(135deg,#aa7700,#ffcc00); color:#1a1000; }
+        .btn-h2-sm:hover:not(:disabled) { box-shadow: 0 0 10px rgba(255,200,60,0.5); }
+
+        .supply-info {
+            font-size: 0.7rem;
+            color: #999;
+            margin-top: 6px;
+            line-height: 1.5;
+        }
+        .supply-warn {
+            font-size: 0.72rem;
+            color: #ff8888;
+            margin-top: 4px;
+            font-weight: bold;
+            min-height: 16px;
+        }
+
+        /* 재고 숫자 */
+        .stock-display {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: #ccc;
+            margin-bottom: 4px;
+        }
+        .stock-val {
+            font-weight: bold;
+        }
+        .n2-card .stock-val { color: #88aaff; }
+        .h2-card .stock-val { color: #ffcc88; }
+
+        /* ── 공정 SVG ── */
+        .process-wrap {
+            position: relative;
+            width: 100%;
+            margin-bottom: 12px;
+        }
+        #processSVG {
+            width: 100%;
+            height: 130px;
+            display: block;
+        }
+
+        /* ── 용기 행 ── */
+        .vessels-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        @media(max-width:760px){ .vessels-row{ grid-template-columns:1fr; } }
+
+        .vessel-card {
+            background: rgba(255,255,255,0.06);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 7px;
+        }
+        .vtag {
+            font-size: 0.78rem; font-weight: bold;
+            padding: 3px 12px; border-radius: 16px;
+        }
+        .vtag-init { background:rgba(79,172,254,0.18); color:#a8edea; border:1px solid #4facfe; }
+        .vtag-curr { background:rgba(249,202,36,0.18);  color:#f9ca24; border:1px solid #f9ca24; }
+
+        canvas.vc {
+            width: 100%;
+            max-width: 380px;
+            border-radius: 10px;
+            border: 2px solid rgba(168,237,234,0.28);
+            display: block;
+            background: #05050f;
+        }
+        .cond-lbl { font-size: 0.73rem; color: #bbb; }
+
+        .rxn-cnt-row { display: flex; gap: 8px; width: 100%; }
+        .rxn-badge {
+            flex: 1; border-radius: 7px;
+            padding: 5px 7px; text-align: center; font-size: 0.7rem;
+        }
+        .fwd { background:rgba(67,233,123,0.13); border:1px solid #43e97b; }
+        .rev { background:rgba(255,100,100,0.13); border:1px solid #ff6464; }
+        .rxn-badge .n { font-size: 1rem; font-weight: bold; }
+        .fwd .n { color:#43e97b; }
+        .rev .n { color:#ff8888; }
+
+        .eq-row {
+            display: flex; align-items: center;
+            justify-content: center; gap: 8px;
+            width: 100%;
+            background: rgba(0,0,0,0.22);
+            border-radius: 7px; padding: 5px 10px;
+            font-size: 0.75rem;
+        }
+        .ea { font-size: 1rem; }
+        .el { font-size: 0.7rem; color: #ccc; }
+
+        .mol-row { display: flex; gap: 6px; width: 100%; flex-wrap: wrap; }
+        .mc {
+            flex: 1; min-width: 55px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 7px; padding: 5px 8px; text-align: center;
+        }
+        .mc .ml { font-size: 0.62rem; color: #aaa; }
+        .mc .mv { font-size: 0.88rem; font-weight: bold; color: #f9ca24; }
+
+        /* ── 하단 행 ── */
+        .bottom-row {
+            display: grid;
+            grid-template-columns: 270px 1fr 190px;
+            gap: 12px;
+        }
+        @media(max-width:900px){ .bottom-row{ grid-template-columns:1fr; } }
+
+        .panel {
+            background: rgba(255,255,255,0.06);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 13px;
+        }
+        .panel h2 {
+            font-size: 0.88rem; margin-bottom: 10px;
+            color: #a8edea;
+            border-bottom: 1px solid rgba(168,237,234,0.2);
+            padding-bottom: 5px;
+        }
+
+        .sl-section { margin-bottom: 11px; }
+        .sl-label { display:flex; justify-content:space-between; margin-bottom:4px; }
+        .sl-title { font-size:0.82rem; font-weight:bold; }
+        .sl-val   { font-size:0.82rem; color:#f9ca24; font-weight:bold; }
+        input[type="range"] {
+            width:100%; height:6px; border-radius:4px;
+            outline:none; cursor:pointer; appearance:none; margin-bottom:3px;
+        }
+        #tempSlider  { background:linear-gradient(to right,#4facfe,#f9ca24,#ff4444); }
+        #pressSlider { background:linear-gradient(to right,#a8edea,#302b63); }
+        input[type="range"]::-webkit-slider-thumb {
+            appearance:none; width:16px; height:16px;
+            border-radius:50%; background:#fff;
+            box-shadow:0 0 5px rgba(255,255,255,0.5); cursor:pointer;
+        }
+        .vis-row {
+            display:flex; align-items:center; gap:6px;
+            font-size:0.73rem; color:#ccc; min-height:20px;
+        }
+        .vsym { font-size:0.95rem; font-weight:bold; min-width:60px; }
+        .ts { color:#ff6b6b; }
+        .ps { color:#4facfe; }
+        .hint-box {
+            font-size:0.7rem; padding:5px 9px;
+            border-radius:6px; margin-top:4px; line-height:1.4;
+        }
+        .hu { background:rgba(255,80,80,0.11);  border-left:3px solid #ff4444; color:#ffbbbb; }
+        .hd { background:rgba(79,172,254,0.11); border-left:3px solid #4facfe; color:#aaddff; }
+        .hn { background:rgba(255,255,255,0.04); border-left:3px solid #777; color:#bbb; }
+
+        .info-box {
+            background:rgba(255,255,255,0.04);
+            border-left:3px solid #a8edea;
+            border-radius:6px;
+            padding:8px 10px;
+            font-size:0.7rem; color:#bbb; line-height:1.6;
+            margin-top:8px;
+        }
+        .info-box b { color:#a8edea; }
+
+        .stats-row { display:flex; gap:7px; flex-wrap:wrap; margin-top:8px; }
+        .stat-card {
+            flex:1; min-width:70px;
+            background:rgba(0,0,0,0.22);
+            border-radius:7px; padding:6px 8px; text-align:center;
+        }
+        .stat-card .sl { font-size:0.6rem; color:#888; }
+        .stat-card .sv { font-size:0.88rem; font-weight:bold; color:#f9ca24; }
+
+        .graph-area { background:rgba(0,0,0,0.18); border-radius:9px; padding:12px 10px 8px; }
+        .graph-title { text-align:center; font-size:0.82rem; color:#a8edea; margin-bottom:10px; }
+        .bars-wrap {
+            display:flex; justify-content:space-around;
+            align-items:flex-end; height:140px;
+            border-bottom:2px solid rgba(255,255,255,0.2);
+            border-left:2px solid rgba(255,255,255,0.2);
+            padding:0 10px; position:relative;
+        }
+        .yg { position:absolute; left:0; right:0; border-top:1px dashed rgba(255,255,255,0.08); }
+        .yl { position:absolute; left:-26px; font-size:0.6rem; color:#777; transform:translateY(50%); }
+        .bcol { display:flex; flex-direction:column; align-items:center; gap:4px; width:50px; }
+        .bar {
+            width:36px; border-radius:3px 3px 0 0;
+            transition:height 0.5s cubic-bezier(0.4,0,0.2,1);
+            position:relative; min-height:3px;
+        }
+        .bv { position:absolute; top:-16px; width:100%; text-align:center; font-size:0.62rem; font-weight:bold; color:#fff; }
+        .bxl { font-size:0.62rem; color:#bbb; text-align:center; line-height:1.25; }
+        .bi { background:linear-gradient(to top,#4facfe,#a8edea); }
+        .bg { background:linear-gradient(to top,#43e97b,#38f9d7); }
+        .br { background:linear-gradient(to top,#f9ca24,#f3722c); }
+        .bs { background:linear-gradient(to top,#4facfe,#a8edea); }
+
+        .diff-box {
+            text-align:center; margin-top:8px;
+            font-size:0.82rem; font-weight:bold;
+            padding:7px; border-radius:7px; transition:all 0.4s;
+        }
+        .dp { background:rgba(80,255,120,0.11); color:#7fff9a; border:1px solid rgba(80,255,120,0.22); }
+        .dn { background:rgba(255,80,80,0.11);  color:#ffaaaa; border:1px solid rgba(255,80,80,0.22); }
+        .dz { background:rgba(255,255,255,0.04); color:#ccc;   border:1px solid rgba(255,255,255,0.1); }
+
+        .legend { display:flex; justify-content:center; gap:12px; margin-top:7px; font-size:0.68rem; }
+        .li { display:flex; align-items:center; gap:4px; }
+        .ld { width:10px; height:10px; border-radius:2px; }
+
+        #analysisText { font-size:0.74rem; line-height:1.8; color:#ccc; }
+
+        .flow-info {
+            background:rgba(255,255,255,0.04);
+            border-radius:9px; padding:9px 12px;
+            font-size:0.7rem; color:#ccc; line-height:1.7;
+        }
+        .flow-item {
+            display:flex; align-items:center; gap:7px;
+            padding:3px 0;
+            border-bottom:1px solid rgba(255,255,255,0.06);
+        }
+        .flow-item:last-child { border-bottom:none; }
+        .flow-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+
+        .reset-btn {
+            display:block; margin:10px auto 0;
+            padding:7px 22px;
+            background:linear-gradient(135deg,#4facfe,#a8edea);
+            color:#1a1a2e; font-size:0.85rem; font-weight:bold;
+            border:none; border-radius:18px; cursor:pointer;
+            transition:transform 0.2s, box-shadow 0.2s;
+        }
+        .reset-btn:hover { transform:scale(1.04); box-shadow:0 0 14px rgba(168,237,234,0.4); }
+
+        /* 파이프 애니메이션 */
+        @keyframes flowPipe { 0%{stroke-dashoffset:200} 100%{stroke-dashoffset:0} }
+        .pipe-n2  { stroke-dasharray:12 6; animation:flowPipe 1.2s linear infinite; }
+        .pipe-h2  { stroke-dasharray:12 6; animation:flowPipe 1.0s linear infinite; }
+        .pipe-nh3 { stroke-dasharray:12 6; animation:flowPipe 1.4s linear infinite; }
+        .pipe-rec { stroke-dasharray: 8 6; animation:flowPipe 1.6s linear infinite reverse; }
+        .pipe-stopped { animation:none; opacity:0.2; }
+
+        /* 재고 부족 경고 오버레이 */
+        .shortage-overlay {
+            display: none;
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(180,20,20,0.95);
+            border: 2px solid #ff4444;
+            border-radius: 14px;
+            padding: 20px 30px;
+            text-align: center;
+            z-index: 1000;
+            font-size: 1rem;
+            box-shadow: 0 0 30px rgba(255,0,0,0.5);
+            animation: popIn 0.3s ease;
+        }
+        @keyframes popIn {
+            from { transform:translate(-50%,-50%) scale(0.7); opacity:0; }
+            to   { transform:translate(-50%,-50%) scale(1);   opacity:1; }
+        }
+        .shortage-overlay.show { display:block; }
+        .shortage-overlay .so-title { font-size:1.3rem; font-weight:bold; color:#ffcccc; margin-bottom:8px; }
+        .shortage-overlay .so-msg   { font-size:0.88rem; color:#ffaaaa; margin-bottom:14px; }
+        .so-close-btn {
+            padding:6px 20px; background:#ff4444; border:none;
+            border-radius:10px; color:#fff; font-weight:bold; cursor:pointer;
+            font-size:0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+<h1>⚗️ 암모니아 합성 공정 시뮬레이터</h1>
+<p class="subtitle">하버-보슈 공정 × 르샤틀리에 원리 × 동적 평형 × 공급 한계 | 고등학교 2학년 화학</p>
+
+<div class="rxn-bar">
+    <span class="chem">N₂</span>
+    <span style="color:#aaa"> + </span>
+    <span class="chem">3H₂</span>
+    <span class="arrow">⇌</span>
+    <span class="chem">2NH₃</span>
+    <div class="exo">🔥 발열반응 (ΔH = −92 kJ/mol) &nbsp;|&nbsp; 4몰 → 2몰 (분자 수 감소)</div>
+</div>
+
+<!-- ══ 공급 제어 패널 ══ -->
+<div class="supply-control">
+    <!-- N2 공급 카드 -->
+    <div class="supply-card n2-card">
+        <div class="supply-header">
+            <span class="supply-title">🔵 질소 (N₂) 공급 탱크</span>
+            <span class="supply-amount" id="n2StockDisp">재고: 100 mol</span>
+        </div>
+        <div class="stock-display">
+            <span>현재 재고</span>
+            <span class="stock-val" id="n2StockNum">100 mol</span>
+        </div>
+        <div class="tank-gauge">
+            <div class="tank-fill n2-fill" id="n2Fill" style="width:100%;"></div>
+            <span class="tank-pct" id="n2Pct">100%</span>
+        </div>
+        <div class="supply-controls-row">
+            <button class="supply-btn btn-n2-sm" id="n2Btn10" onclick="supplyN2(10)">+10 mol</button>
+            <button class="supply-btn btn-n2-sm" id="n2Btn25" onclick="supplyN2(25)">+25 mol</button>
+            <button class="supply-btn btn-n2-sm" id="n2Btn50" onclick="supplyN2(50)">+50 mol</button>
+        </div>
+        <div class="supply-info">
+            💡 N₂ 한계: 최대 <b>200 mol</b> 저장 가능<br>
+            소비: 반응 1회당 <b>1 mol N₂</b> 사용 (N₂ + 3H₂ → 2NH₃)
+        </div>
+        <div class="supply-warn" id="n2Warn"></div>
+    </div>
+
+    <!-- H2 공급 카드 -->
+    <div class="supply-card h2-card">
+        <div class="supply-header">
+            <span class="supply-title">🟡 수소 (H₂) 공급 탱크</span>
+            <span class="supply-amount" id="h2StockDisp">재고: 300 mol</span>
+        </div>
+        <div class="stock-display">
+            <span>현재 재고</span>
+            <span class="stock-val" id="h2StockNum">300 mol</span>
+        </div>
+        <div class="tank-gauge">
+            <div class="tank-fill h2-fill" id="h2Fill" style="width:100%;"></div>
+            <span class="tank-pct" id="h2Pct">100%</span>
+        </div>
+        <div class="supply-controls-row">
+            <button class="supply-btn btn-h2-sm" id="h2Btn30" onclick="supplyH2(30)">+30 mol</button>
+            <button class="supply-btn btn-h2-sm" id="h2Btn75" onclick="supplyH2(75)">+75 mol</button>
+            <button class="supply-btn btn-h2-sm" id="h2Btn150" onclick="supplyH2(150)">+150 mol</button>
+        </div>
+        <div class="supply-info">
+            💡 H₂ 한계: 최대 <b>600 mol</b> 저장 가능<br>
+            소비: 반응 1회당 <b>3 mol H₂</b> 사용 (N₂ + 3H₂ → 2NH₃)
+        </div>
+        <div class="supply-warn" id="h2Warn"></div>
+    </div>
+</div>
+
+<!-- ══ 공정 파이프라인 ══ -->
+<div class="process-wrap">
+    <svg id="processSVG" viewBox="0 0 900 130" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <filter id="glow">
+                <feGaussianBlur stdDeviation="3" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="glowS">
+                <feGaussianBlur stdDeviation="5" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <linearGradient id="reactorGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#2a4a6a"/>
+                <stop offset="100%" stop-color="#0a1a2a"/>
+            </linearGradient>
+            <linearGradient id="sepGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#1a3a2a"/>
+                <stop offset="100%" stop-color="#051510"/>
+            </linearGradient>
+            <linearGradient id="tn2" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#1a2a5a"/>
+                <stop offset="100%" stop-color="#050a20"/>
+            </linearGradient>
+            <linearGradient id="th2" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#3a2a00"/>
+                <stop offset="100%" stop-color="#150a00"/>
+            </linearGradient>
+            <linearGradient id="tnh3" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#003a3a"/>
+                <stop offset="100%" stop-color="#001515"/>
+            </linearGradient>
+        </defs>
+        <rect width="900" height="130" fill="rgba(5,5,20,0.7)" rx="10"/>
+
+        <!-- N2 파이프 -->
+        <line x1="90" y1="35" x2="220" y2="65"
+              stroke="#6699ff" stroke-width="4" opacity="0.6"
+              id="svgPipeN2" class="pipe-n2" filter="url(#glow)"/>
+        <!-- N2 탱크 -->
+        <rect x="20" y="15" width="70" height="40" rx="8" fill="url(#tn2)"
+              stroke="#4466ff" stroke-width="1.5"/>
+        <text x="55" y="31" fill="#aaccff" font-size="10" text-anchor="middle" font-weight="bold">N₂ 탱크</text>
+        <text x="55" y="44" fill="#6699ff" font-size="9" text-anchor="middle" id="svgN2Stock">100 mol</text>
+
+        <!-- H2 파이프 -->
+        <line x1="90" y1="90" x2="220" y2="70"
+              stroke="#ffcc44" stroke-width="4" opacity="0.6"
+              id="svgPipeH2" class="pipe-h2" filter="url(#glow)"/>
+        <!-- H2 탱크 -->
+        <rect x="20" y="72" width="70" height="40" rx="8" fill="url(#th2)"
+              stroke="#ffaa00" stroke-width="1.5"/>
+        <text x="55" y="88" fill="#ffeeaa" font-size="10" text-anchor="middle" font-weight="bold">H₂ 탱크</text>
+        <text x="55" y="101" fill="#ffaa00" font-size="9" text-anchor="middle" id="svgH2Stock">300 mol</text>
+
+        <!-- 믹서 -->
+        <circle cx="240" cy="68" r="20" fill="#1a2a4a" stroke="#4488cc" stroke-width="1.5"/>
+        <text x="240" y="64" fill="#88ccff" font-size="8" text-anchor="middle" font-weight="bold">혼합</text>
+        <text x="240" y="75" fill="#88ccff" font-size="7" text-anchor="middle">Mixer</text>
+
+        <!-- 믹서→압축기 -->
+        <line x1="260" y1="68" x2="315" y2="68"
+              stroke="#88aaff" stroke-width="4" opacity="0.55"
+              id="svgPipeMix" class="pipe-n2" filter="url(#glow)"/>
+
+        <!-- 압축기 -->
+        <rect x="315" y="50" width="50" height="36" rx="7" fill="#1a1a3a" stroke="#6644aa" stroke-width="1.5"/>
+        <text x="340" y="65" fill="#aa88ff" font-size="9" text-anchor="middle" font-weight="bold">압축기</text>
+        <text x="340" y="77" fill="#8866cc" font-size="7.5" text-anchor="middle" id="svgPress">200atm</text>
+
+        <!-- 압축기→반응기 -->
+        <line x1="365" y1="68" x2="420" y2="68"
+              stroke="#88aaff" stroke-width="4" opacity="0.55"
+              id="svgPipeComp" class="pipe-h2" filter="url(#glow)"/>
+
+        <!-- 반응기 -->
+        <rect x="420" y="20" width="100" height="88" rx="10"
+              fill="url(#reactorGrad)" stroke="#a8edea" stroke-width="2" filter="url(#glow)"
+              id="svgReactor"/>
+        <text x="470" y="43" fill="#a8edea" font-size="10" text-anchor="middle" font-weight="bold">반응기</text>
+        <text x="470" y="57" fill="#88cccc" font-size="8.5" text-anchor="middle">Reactor</text>
+        <text x="470" y="70" fill="#f9ca24" font-size="8" text-anchor="middle" id="svgTemp">400°C</text>
+        <text x="470" y="82" fill="#aa88ff" font-size="7.5" text-anchor="middle">Fe 촉매</text>
+        <circle cx="470" cy="68" r="14" fill="none" stroke="#a8edea" stroke-width="0.5" opacity="0.3"/>
+
+        <!-- 반응기→분리기 -->
+        <line x1="520" y1="68" x2="575" y2="68"
+              stroke="#66ffee" stroke-width="4" opacity="0.55"
+              id="svgPipeRx" class="pipe-nh3" filter="url(#glow)"/>
+
+        <!-- 분리기 -->
+        <rect x="575" y="42" width="65" height="54" rx="8"
+              fill="url(#sepGrad)" stroke="#44cc88" stroke-width="1.5"/>
+        <text x="607" y="62" fill="#88ffcc" font-size="9" text-anchor="middle" font-weight="bold">분리기</text>
+        <text x="607" y="74" fill="#66aa88" font-size="7.5" text-anchor="middle">냉각·응축</text>
+        <text x="607" y="85" fill="#44ffaa" font-size="7.5" text-anchor="middle" id="svgSepEff">50%</text>
+
+        <!-- 분리기→NH3탱크 -->
+        <line x1="640" y1="68" x2="720" y2="68"
+              stroke="#44ffcc" stroke-width="4" opacity="0.55"
+              id="svgPipeSep" class="pipe-nh3" filter="url(#glow)"/>
+        <text x="680" y="60" fill="#44ffaa" font-size="8" text-anchor="middle">NH₃ →</text>
+
+        <!-- NH3 저장 탱크 -->
+        <rect x="720" y="42" width="80" height="54" rx="9"
+              fill="url(#tnh3)" stroke="#a8edea" stroke-width="2" filter="url(#glowS)"/>
+        <text x="760" y="60" fill="#a8edea" font-size="10" text-anchor="middle" font-weight="bold">NH₃</text>
+        <text x="760" y="73" fill="#66ffee" font-size="8.5" text-anchor="middle">저장 탱크</text>
+        <text x="760" y="86" fill="#f9ca24" font-size="9" text-anchor="middle" id="svgNH3Tank">0 mol</text>
+
+        <!-- NH3 출력 -->
+        <line x1="800" y1="68" x2="855" y2="68"
+              stroke="#44ffcc" stroke-width="4" opacity="0.6"
+              id="svgPipeOut" class="pipe-nh3" filter="url(#glow)"/>
+        <polygon points="855,61 875,68 855,75" fill="#44ffcc" opacity="0.8" filter="url(#glow)"/>
+        <text x="862" y="90" fill="#66ffee" font-size="8" text-anchor="middle">출력</text>
+
+        <!-- 재순환 파이프 -->
+        <path d="M 590 42 Q 590 15 470 15 Q 350 15 350 50"
+              fill="none" stroke="#888" stroke-width="2.5"
+              id="svgPipeRec" class="pipe-rec" opacity="0.55"/>
+        <text x="470" y="12" fill="#888" font-size="7.5" text-anchor="middle">미반응 N₂/H₂ 재순환</text>
+
+        <!-- 정지 표시 -->
+        <text x="470" y="68" fill="#ff4444" font-size="20" text-anchor="middle"
+              id="svgStopSign" opacity="0" font-weight="bold">⛔</text>
+    </svg>
+</div>
+
+<!-- ══ 용기 2개 ══ -->
+<div class="vessels-row">
+    <div class="vessel-card">
+        <div class="vtag vtag-init">🔵 대조군 (400°C / 200atm)</div>
+        <canvas class="vc" id="cvInit" width="380" height="290"></canvas>
+        <div class="cond-lbl">초기 조건 고정</div>
+        <div class="rxn-cnt-row">
+            <div class="rxn-badge fwd">
+                <div>정반응 (→)</div>
+                <div class="n" id="iFwd">0</div>
+                <div style="font-size:0.63rem">N₂+3H₂→2NH₃</div>
+            </div>
+            <div class="rxn-badge rev">
+                <div>역반응 (←)</div>
+                <div class="n" id="iRev">0</div>
+                <div style="font-size:0.63rem">2NH₃→N₂+3H₂</div>
+            </div>
+        </div>
+        <div class="eq-row">
+            <span class="ea" id="iFwdA" style="color:#43e97b">⇒</span>
+            <span class="el" id="iEqL">동적 평형 ⚖️</span>
+            <span class="ea" id="iRevA" style="color:#ff8888">⇐</span>
+        </div>
+        <div class="mol-row">
+            <div class="mc"><div class="ml">NH₃</div><div class="mv" id="iNH3">-</div></div>
+            <div class="mc"><div class="ml">N₂</div> <div class="mv" id="iN2">-</div></div>
+            <div class="mc"><div class="ml">H₂</div> <div class="mv" id="iH2">-</div></div>
+        </div>
+    </div>
+
+    <div class="vessel-card">
+        <div class="vtag vtag-curr">🟡 실험군 (현재 조건)</div>
+        <canvas class="vc" id="cvCurr" width="380" height="290"></canvas>
+        <div class="cond-lbl" id="currCL">400°C / 200 atm</div>
+        <div class="rxn-cnt-row">
+            <div class="rxn-badge fwd">
+                <div>정반응 (→)</div>
+                <div class="n" id="cFwd">0</div>
+                <div style="font-size:0.63rem">N₂+3H₂→2NH₃</div>
+            </div>
+            <div class="rxn-badge rev">
+                <div>역반응 (←)</div>
+                <div class="n" id="cRev">0</div>
+                <div style="font-size:0.63rem">2NH₃→N₂+3H₂</div>
+            </div>
+        </div>
+        <div class="eq-row">
+            <span class="ea" id="cFwdA" style="color:#43e97b">⇒</span>
+            <span class="el" id="cEqL">동적 평형 ⚖️</span>
+            <span class="ea" id="cRevA" style="color:#ff8888">⇐</span>
+        </div>
+        <div class="mol-row">
+            <div class="mc"><div class="ml">NH₃</div><div class="mv" id="cNH3">-</div></div>
+            <div class="mc"><div class="ml">N₂</div> <div class="mv" id="cN2">-</div></div>
+            <div class="mc"><div class="ml">H₂</div> <div class="mv" id="cH2">-</div></div>
+        </div>
+    </div>
+</div>
+
+<!-- ══ 하단 ══ -->
+<div class="bottom-row">
+    <div class="panel">
+        <h2>🎛️ 외부 조건 조절</h2>
+        <div class="sl-section">
+            <div class="sl-label">
+                <span class="sl-title">🌡️ 온도</span>
+                <span class="sl-val" id="tempVal">400 °C</span>
+            </div>
+            <input type="range" id="tempSlider" min="100" max="700" value="400" step="10">
+            <div class="vis-row">
+                <span class="vsym ts" id="tSym">~~></span>
+                <span id="tShort" style="font-size:0.72rem;"></span>
+            </div>
+            <div class="hint-box hn" id="tHint"></div>
+        </div>
+        <div class="sl-section">
+            <div class="sl-label">
+                <span class="sl-title">🔵 압력</span>
+                <span class="sl-val" id="pressVal">200 atm</span>
+            </div>
+            <input type="range" id="pressSlider" min="50" max="500" value="200" step="10">
+            <div class="vis-row">
+                <span class="vsym ps" id="pSym">→→</span>
+                <span id="pShort" style="font-size:0.72rem;"></span>
+            </div>
+            <div class="hint-box hn" id="pHint"></div>
+        </div>
+        <div class="info-box">
+            <b>공급 한계</b><br>
+            • N₂ 최대 200 mol / H₂ 최대 600 mol<br>
+            • 정반응 1회: N₂ 1mol + H₂ 3mol 소비<br>
+            • 역반응 시: NH₃ 분해 → N₂/H₂ 재생<br>
+            • 재고 0 시 공급 파이프 자동 차단
+        </div>
+        <div class="stats-row">
+            <div class="stat-card"><div class="sl">소비 N₂</div><div class="sv" id="statN2">0</div></div>
+            <div class="stat-card"><div class="sl">소비 H₂</div><div class="sv" id="statH2">0</div></div>
+            <div class="stat-card"><div class="sl">생산 NH₃</div><div class="sv" id="statNH3">0</div></div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>🔬 반응 분석</h2>
+        <div id="analysisText"></div>
+        <div style="margin-top:10px;">
+            <div class="flow-info">
+                <div class="flow-item">
+                    <div class="flow-dot" style="background:#6699ff;"></div>
+                    <span><b>N₂ 공급관:</b> 질소 탱크 → 믹서 → 반응기</span>
+                </div>
+                <div class="flow-item">
+                    <div class="flow-dot" style="background:#ffcc44;"></div>
+                    <span><b>H₂ 공급관:</b> 수소 탱크 → 믹서 → 반응기</span>
+                </div>
+                <div class="flow-item">
+                    <div class="flow-dot" style="background:#44ffcc;"></div>
+                    <span><b>NH₃ 배출관:</b> 반응기 → 분리기 → 저장</span>
+                </div>
+                <div class="flow-item">
+                    <div class="flow-dot" style="background:#888;"></div>
+                    <span><b>재순환관:</b> 미반응 가스 → 반응기 재투입</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>📊 생산량 비교</h2>
+        <div class="graph-area">
+            <div class="graph-title">대조군 vs 실험군</div>
+            <div class="bars-wrap">
+                <div class="yg" style="bottom:140px;"><span class="yl">100</span></div>
+                <div class="yg" style="bottom:105px;"><span class="yl">75</span></div>
+                <div class="yg" style="bottom:70px;"><span class="yl">50</span></div>
+                <div class="yg" style="bottom:35px;"><span class="yl">25</span></div>
+                <div class="bcol">
+                    <div style="position:relative;height:140px;display:flex;align-items:flex-end;">
+                        <div class="bar bi" id="bInit" style="height:70px;"><span class="bv" id="bInitV">50</span></div>
+                    </div>
+                    <div class="bxl">🔵 대조군</div>
+                </div>
+                <div class="bcol">
+                    <div style="position:relative;height:140px;display:flex;align-items:flex-end;">
+                        <div class="bar bs" id="bCurr" style="height:70px;"><span class="bv" id="bCurrV">50</span></div>
+                    </div>
+                    <div class="bxl">🟡 실험군</div>
+                </div>
+            </div>
+            <div class="legend">
+                <div class="li"><div class="ld" style="background:linear-gradient(#4facfe,#a8edea);"></div><span>대조군</span></div>
+                <div class="li"><div class="ld" style="background:linear-gradient(#43e97b,#38f9d7);"></div><span>증가</span></div>
+                <div class="li"><div class="ld" style="background:linear-gradient(#f9ca24,#f3722c);"></div><span>감소</span></div>
+            </div>
+            <div class="diff-box dz" id="diffBox">초기값과 동일</div>
+        </div>
+    </div>
+</div>
+
+<button class="reset-btn" onclick="resetAll()">🔄 전체 리셋</button>
+
+<!-- 재고 부족 경고 -->
+<div class="shortage-overlay" id="shortageOverlay">
+    <div class="so-title">⚠️ 공급 중단!</div>
+    <div class="so-msg" id="shortageMsg">재고가 부족합니다.</div>
+    <button class="so-close-btn" onclick="closeShortage()">확인</button>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+//  상수
+// ════════════════════════════════════════════
+const INIT_TEMP  = 400;
+const INIT_PRESS = 200;
+const INIT_YIELD = 50;
+const CW = 380, CH = 290;
+
+// 공급 재고
+const N2_MAX  = 200;
+const H2_MAX  = 600;
+let   n2Stock = 100;   // 초기 재고
+let   h2Stock = 300;
+
+// 소비 통계
+let totalN2Used  = 0;
+let totalH2Used  = 0;
+let totalNH3Made = 0;
+
+// 재고 부족 여부
+let n2Empty = false;
+let h2Empty = false;
+
+// ════════════════════════════════════════════
+//  공급 함수
+// ════════════════════════════════════════════
+function supplyN2(amount) {
+    const space = N2_MAX - n2Stock;
+    const actual = Math.min(amount, space);
+    if (actual <= 0) {
+        showShortage(`N₂ 탱크가 가득 찼습니다! (최대 ${N2_MAX} mol)`);
+        return;
+    }
+    n2Stock += actual;
+    updateStockUI();
+}
+
+function supplyH2(amount) {
+    const space = H2_MAX - h2Stock;
+    const actual = Math.min(amount, space);
+    if (actual <= 0) {
+        showShortage(`H₂ 탱크가 가득 찼습니다! (최대 ${H2_MAX} mol)`);
+        return;
+    }
+    h2Stock += actual;
+    updateStockUI();
+}
+
+// 반응으로 소비 (currSim에서 호출)
+function consumeForReaction() {
+    // 정반응 1회: N2 1mol, H2 3mol 소비
+    if (n2Stock <= 0 && h2Stock <= 0) return false;
+    if (n2Stock <= 0 || h2Stock < 3) return false;
+    n2Stock  = Math.max(0, n2Stock - 1);
+    h2Stock  = Math.max(0, h2Stock - 3);
+    totalN2Used  += 1;
+    totalH2Used  += 3;
+    totalNH3Made += 2;
+    updateStockUI();
+    return true;
+}
+
+// 역반응으로 일부 재생 (NH3 분해 → N2, H2 일부 복원)
+function recoverFromReverse() {
+    // 역반응 1회: NH3 2mol 분해 → N2 1mol + H2 3mol 복원
+    // 단, 최대치를 넘지 않게
+    n2Stock = Math.min(N2_MAX, n2Stock + 1);
+    h2Stock = Math.min(H2_MAX, h2Stock + 3);
+    updateStockUI();
+}
+
+function updateStockUI() {
+    const n2Pct = (n2Stock / N2_MAX * 100).toFixed(0);
+    const h2Pct = (h2Stock / H2_MAX * 100).toFixed(0);
+
+    document.getElementById('n2StockDisp').textContent = `재고: ${n2Stock.toFixed(1)} mol`;
+    document.getElementById('n2StockNum').textContent  = `${n2Stock.toFixed(1)} mol`;
+    document.getElementById('h2StockDisp').textContent = `재고: ${h2Stock.toFixed(1)} mol`;
+    document.getElementById('h2StockNum').textContent  = `${h2Stock.toFixed(1)} mol`;
+
+    const n2FillEl = document.getElementById('n2Fill');
+    const h2FillEl = document.getElementById('h2Fill');
+    n2FillEl.style.width = n2Pct + '%';
+    h2FillEl.style.width = h2Pct + '%';
+    document.getElementById('n2Pct').textContent = n2Pct + '%';
+    document.getElementById('h2Pct').textContent = h2Pct + '%';
+
+    // 위험 색상
+    n2FillEl.classList.toggle('tank-fill-danger', parseFloat(n2Pct) < 15);
+    h2FillEl.classList.toggle('tank-fill-danger', parseFloat(h2Pct) < 15);
+
+    // 경고 메시지
+    const n2W = document.getElementById('n2Warn');
+    const h2W = document.getElementById('h2Warn');
+
+    if (n2Stock <= 0) {
+        n2W.textContent = '⛔ N₂ 재고 소진! 공급을 추가하세요.';
+        n2Empty = true;
+    } else if (n2Stock < 10) {
+        n2W.textContent = `⚠️ N₂ 잔량 부족 (${n2Stock.toFixed(1)} mol)`;
+        n2Empty = false;
+    } else {
+        n2W.textContent = '';
+        n2Empty = false;
+    }
+
+    if (h2Stock <= 0) {
+        h2W.textContent = '⛔ H₂ 재고 소진! 공급을 추가하세요.';
+        h2Empty = true;
+    } else if (h2Stock < 30) {
+        h2W.textContent = `⚠️ H₂ 잔량 부족 (${h2Stock.toFixed(1)} mol)`;
+        h2Empty = false;
+    } else {
+        h2W.textContent = '';
+        h2Empty = false;
+    }
+
+    // 버튼 활성/비활성
+    document.getElementById('n2Btn10').disabled = n2Stock >= N2_MAX;
+    document.getElementById('n2Btn25').disabled = n2Stock >= N2_MAX;
+    document.getElementById('n2Btn50').disabled = n2Stock >= N2_MAX;
+    document.getElementById('h2Btn30').disabled  = h2Stock >= H2_MAX;
+    document.getElementById('h2Btn75').disabled  = h2Stock >= H2_MAX;
+    document.getElementById('h2Btn150').disabled = h2Stock >= H2_MAX;
+
+    // SVG 탱크 라벨
+    document.getElementById('svgN2Stock').textContent = n2Stock.toFixed(0) + ' mol';
+    document.getElementById('svgH2Stock').textContent = h2Stock.toFixed(0) + ' mol';
+    document.getElementById('svgNH3Tank').textContent = totalNH3Made + ' mol';
+
+    // 통계
+    document.getElementById('statN2').textContent  = totalN2Used;
+    document.getElementById('statH2').textContent  = totalH2Used;
+    document.getElementById('statNH3').textContent = totalNH3Made;
+
+    // SVG 파이프 색
+    const n2Running = n2Stock > 0 && h2Stock > 0;
+    const pipeN2  = document.getElementById('svgPipeN2');
+    const pipeH2  = document.getElementById('svgPipeH2');
+    const pipeMix = document.getElementById('svgPipeMix');
+    const pipeComp= document.getElementById('svgPipeComp');
+    const stopSign= document.getElementById('svgStopSign');
+
+    if (!n2Running) {
+        [pipeN2,pipeH2,pipeMix,pipeComp].forEach(p => {
+            p.classList.add('pipe-stopped');
+            p.classList.remove('pipe-n2','pipe-h2');
+        });
+        stopSign.setAttribute('opacity','0.85');
+    } else {
+        pipeN2.classList.remove('pipe-stopped');   pipeN2.classList.add('pipe-n2');
+        pipeH2.classList.remove('pipe-stopped');   pipeH2.classList.add('pipe-h2');
+        pipeMix.classList.remove('pipe-stopped');  pipeMix.classList.add('pipe-n2');
+        pipeComp.classList.remove('pipe-stopped'); pipeComp.classList.add('pipe-h2');
+        stopSign.setAttribute('opacity','0');
+    }
+}
+
+function showShortage(msg) {
+    document.getElementById('shortageMsg').textContent = msg;
+    document.getElementById('shortageOverlay').classList.add('show');
+}
+function closeShortage() {
+    document.getElementById('shortageOverlay').classList.remove('show');
+}
+
+// ════════════════════════════════════════════
+//  분자 그리기
+// ════════════════════════════════════════════
+function drawN2(ctx, x, y, a = 1) {
+    ctx.globalAlpha = a;
+    const r = 9, g = 7;
+    ctx.strokeStyle = 'rgba(120,160,255,0.7)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(x-g, y); ctx.lineTo(x+g, y); ctx.stroke();
+    [-1,1].forEach(s => {
+        const cx = x + s*g;
+        const gr = ctx.createRadialGradient(cx-2.5,y-2.5,0.5,cx,y,r);
+        gr.addColorStop(0,'#bbccff'); gr.addColorStop(1,'#1122aa');
+        ctx.beginPath(); ctx.arc(cx,y,r,0,Math.PI*2);
+        ctx.fillStyle=gr; ctx.fill();
+        ctx.strokeStyle='rgba(150,180,255,0.45)'; ctx.lineWidth=1; ctx.stroke();
+        ctx.fillStyle='rgba(255,255,255,0.92)';
+        ctx.font='bold 7px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('N',cx,y);
+    });
+    ctx.globalAlpha=1;
+}
+
+function drawH2(ctx, x, y, a = 1) {
+    ctx.globalAlpha = a;
+    const r=7, g=6;
+    ctx.strokeStyle='rgba(255,210,70,0.6)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(x-g,y); ctx.lineTo(x+g,y); ctx.stroke();
+    [-1,1].forEach(s => {
+        const cx=x+s*g;
+        const gr=ctx.createRadialGradient(cx-2,y-2,0.4,cx,y,r);
+        gr.addColorStop(0,'#fffacc'); gr.addColorStop(1,'#aa8800');
+        ctx.beginPath(); ctx.arc(cx,y,r,0,Math.PI*2);
+        ctx.fillStyle=gr; ctx.fill();
+        ctx.strokeStyle='rgba(255,230,90,0.4)'; ctx.lineWidth=1; ctx.stroke();
+        ctx.fillStyle='rgba(40,20,0,0.95)';
+        ctx.font='bold 6.5px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('H',cx,y);
+    });
+    ctx.globalAlpha=1;
+}
+
+function drawNH3(ctx, x, y, a = 1) {
+    ctx.globalAlpha = a;
+    const rN=11, rH=7;
+    const hP=[{dx:-17,dy:13},{dx:17,dy:13},{dx:0,dy:-17}];
+    ctx.strokeStyle='rgba(168,237,234,0.6)'; ctx.lineWidth=2;
+    hP.forEach(p => {
+        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+p.dx,y+p.dy); ctx.stroke();
+    });
+    hP.forEach(p => {
+        const hx=x+p.dx, hy=y+p.dy;
+        const gr=ctx.createRadialGradient(hx-2,hy-2,0.5,hx,hy,rH);
+        gr.addColorStop(0,'#ffffff'); gr.addColorStop(1,'#9999cc');
+        ctx.beginPath(); ctx.arc(hx,hy,rH,0,Math.PI*2);
+        ctx.fillStyle=gr; ctx.fill();
+        ctx.strokeStyle='rgba(200,200,255,0.35)'; ctx.lineWidth=1; ctx.stroke();
+        ctx.fillStyle='#223'; ctx.font='bold 6px Arial';
+        ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('H',hx,hy);
+    });
+    const grN=ctx.createRadialGradient(x-3,y-3,1,x,y,rN);
+    grN.addColorStop(0,'#88ffee'); grN.addColorStop(0.5,'#00bbcc'); grN.addColorStop(1,'#003355');
+    ctx.beginPath(); ctx.arc(x,y,rN,0,Math.PI*2);
+    ctx.fillStyle=grN; ctx.fill();
+    ctx.strokeStyle='rgba(168,237,234,0.7)'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle='#fff'; ctx.font='bold 8px Arial';
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('N',x,y);
+    ctx.globalAlpha=1;
+}
+
+// ════════════════════════════════════════════
+//  ReactionEffect
+// ════════════════════════════════════════════
+class ReactionEffect {
+    constructor(x, y, type) {
+        this.x=x; this.y=y; this.type=type;
+        this.age=0; this.dur=55;
+        this.pts=Array.from({length:8},(_,i)=>{
+            const a=(i/8)*Math.PI*2;
+            return {vx:Math.cos(a)*(1+Math.random()),vy:Math.sin(a)*(1+Math.random())};
+        });
+    }
+    get done() { return this.age>=this.dur; }
+    get progress() { return this.age/this.dur; }
+    update() { this.age++; }
+    draw(ctx) {
+        const p=this.progress;
+        const al=p<0.5?p*2:(1-p)*2;
+        const col=this.type==='form'?'#43e97b':'#ff6464';
+        ctx.save(); ctx.globalAlpha=al*0.45;
+        ctx.strokeStyle=col; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.arc(this.x,this.y,p*28,0,Math.PI*2); ctx.stroke();
+        ctx.restore();
+        this.pts.forEach(pt=>{
+            ctx.save(); ctx.globalAlpha=al*0.75; ctx.fillStyle=col;
+            ctx.beginPath(); ctx.arc(this.x+pt.vx*p*22,this.y+pt.vy*p*22,2.2*(1-p),0,Math.PI*2);
+            ctx.fill(); ctx.restore();
+        });
+        ctx.save(); ctx.globalAlpha=al; ctx.fillStyle=col;
+        ctx.font=`bold ${9+p*3}px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(this.type==='form'?'⚡결합! (정반응)':'💥분해! (역반응)',this.x,this.y-20);
+        ctx.font='7.5px Arial'; ctx.fillStyle='#fff';
+        ctx.fillText(this.type==='form'?'N₂+3H₂→2NH₃':'2NH₃→N₂+3H₂',this.x,this.y+18);
+        ctx.restore();
+    }
+}
+
+// ════════════════════════════════════════════
+//  Molecule 파티클
+// ════════════════════════════════════════════
+class Molecule {
+    constructor(type, x, y) {
+        this.type=type; this.x=x; this.y=y;
+        this.vx=(Math.random()-0.5)*1.4;
+        this.vy=(Math.random()-0.5)*1.4;
+        this.angle=Math.random()*Math.PI*2;
+        this.va=(Math.random()-0.5)*0.025;
+        this.alpha=1; this.active=true;
+        this.targetX=null; this.targetY=null;
+        this.approachSpeed=0;
+    }
+    update(sm,W,H) {
+        if(!this.active) return;
+        if(this.targetX!==null) {
+            const dx=this.targetX-this.x, dy=this.targetY-this.y;
+            const d=Math.sqrt(dx*dx+dy*dy);
+            if(d>1){this.x+=dx/d*this.approachSpeed; this.y+=dy/d*this.approachSpeed;}
+        } else {
+            this.x+=this.vx*sm; this.y+=this.vy*sm;
+            const pad=22;
+            if(this.x<pad||this.x>W-pad) this.vx*=-1;
+            if(this.y<pad||this.y>H-pad) this.vy*=-1;
+            this.x=Math.max(pad,Math.min(W-pad,this.x));
+            this.y=Math.max(pad,Math.min(H-pad,this.y));
+        }
+        this.angle+=this.va*sm;
+    }
+    draw(ctx) {
+        if(!this.active) return;
+        ctx.save(); ctx.translate(this.x,this.y); ctx.rotate(this.angle);
+        if(this.type==='N2')       drawN2(ctx,0,0,this.alpha);
+        else if(this.type==='H2')  drawH2(ctx,0,0,this.alpha);
+        else if(this.type==='NH3') drawNH3(ctx,0,0,this.alpha);
+        ctx.restore();
+    }
+}
+
+// ════════════════════════════════════════════
+//  VesselSim
+// ════════════════════════════════════════════
+class VesselSim {
+    constructor(canvasId, isInit, ui) {
+        this.canvas=document.getElementById(canvasId);
+        this.ctx=this.canvas.getContext('2d');
+        this.isInit=isInit;
+        this.W=this.canvas.width; this.H=this.canvas.height;
+        this.temp=INIT_TEMP; this.press=INIT_PRESS; this.yieldVal=INIT_YIELD;
+        this.targetNH3=0; this.targetN2=0; this.targetH2=0;
+        this.molecules=[]; this.effects=[];
+        this.fwdCount=0; this.revCount=0;
+        this.rxnCD=0; this.rxnInt=80;
+        this.bondAnim=null;
+        this.ui=ui;
+        this.supplyMols=[]; this.exhaustMols=[];
+        this.supplyCD=0; this.exhaustCD=0;
+        // 공급 중단 여부
+        this.supplyHalted=false;
+        this._calcTargets(INIT_YIELD);
+        this._initMolecules();
+        this._loop();
+    }
+
+    setConditions(temp, press, yieldVal) {
+        if(this.isInit) return;
+        this.temp=temp; this.press=press; this.yieldVal=yieldVal;
+        this._calcTargets(yieldVal);
+    }
+
+    _calcTargets(y) {
+        const total=24;
+        this.targetNH3=Math.max(1,Math.round(total*(y/100)*0.78));
+        this.targetN2=Math.max(1,Math.round((total-this.targetNH3)*0.27));
+        this.targetH2=Math.max(1,total-this.targetNH3-this.targetN2);
+    }
+
+    _cnt(t) { return this.molecules.filter(m=>m.active&&m.type===t).length; }
+
+    _initMolecules() {
+        this.molecules=[];
+        const p=(t,n)=>{
+            for(let i=0;i<n;i++){
+                this.molecules.push(new Molecule(t,35+Math.random()*(this.W-70),35+Math.random()*(this.H-70)));
+            }
+        };
+        p('NH3',this.targetNH3); p('N2',this.targetN2); p('H2',this.targetH2);
+    }
+
+    // ── 공급 분자 (파이프 입구에서 들어오는 애니메이션) ──
+    _spawnSupply(type) {
+        const m=new Molecule(type,-5,70+Math.random()*(this.H-140));
+        m.vx=1.6+Math.random(); m.vy=(Math.random()-0.5)*0.5;
+        m.isSupply=true; m.alpha=0;
+        this.supplyMols.push(m);
+    }
+
+    _spawnExhaust() {
+        const nh3s=this.molecules.filter(m=>m.active&&m.type==='NH3');
+        if(nh3s.length<2) return;
+        const m=nh3s[Math.floor(Math.random()*nh3s.length)];
+        m.active=false;
+        const em=new Molecule('NH3',m.x,m.y);
+        em.vx=2+Math.random(); em.vy=(Math.random()-0.5)*0.3;
+        em.isExhaust=true; em.alpha=1;
+        this.exhaustMols.push(em);
+    }
+
+    _updateSupplyExhaust(sm) {
+        // 재고 체크
+        const hasStock = n2Stock > 0 && h2Stock > 2;
+        this.supplyHalted = !hasStock;
+
+        this.supplyMols=this.supplyMols.filter(m=>{
+            m.x+=m.vx*sm*1.4;
+            m.alpha=Math.min(1,m.x/25);
+            if(m.x>45){
+                const nm=new Molecule(m.type,m.x,m.y);
+                nm.vx=(Math.random()-0.5)*1.5;
+                nm.vy=(Math.random()-0.5)*1.5;
+                this.molecules.push(nm);
+                return false;
+            }
+            return true;
+        });
+
+        this.exhaustMols=this.exhaustMols.filter(m=>{
+            m.x+=m.vx*sm*1.4;
+            m.alpha=Math.max(0,1-(m.x-(this.W-40))/40);
+            return m.x<this.W+20;
+        });
+
+        if(!this.isInit && hasStock){
+            const pressF=0.5+(this.press/500)*2.2;
+            const supplyRate=Math.max(35,Math.round(110/pressF));
+            this.supplyCD--;
+            if(this.supplyCD<=0){
+                this._spawnSupply('N2');
+                this._spawnSupply('H2'); this._spawnSupply('H2'); this._spawnSupply('H2');
+                this.supplyCD=supplyRate;
+            }
+        }
+
+        if(!this.isInit){
+            const exhaustRate=Math.max(45,Math.round(170/((this.yieldVal/INIT_YIELD)+0.5)));
+            this.exhaustCD--;
+            if(this.exhaustCD<=0){
+                this._spawnExhaust();
+                this.exhaustCD=exhaustRate;
+            }
+        }
+    }
+
+    // ── 정반응 (재고 소비 포함) ──
+    _tryFwd() {
+        if(!this.isInit){
+            // 재고 체크
+            if(n2Stock<1||h2Stock<3) return false;
+        }
+        const n2s=this.molecules.filter(m=>m.active&&m.type==='N2');
+        const h2s=this.molecules.filter(m=>m.active&&m.type==='H2');
+        if(n2s.length<1||h2s.length<3) return false;
+        const n2=n2s[Math.floor(Math.random()*n2s.length)];
+        const pool=h2s.slice(), picked=[];
+        for(let i=0;i<3;i++){
+            const idx=Math.floor(Math.random()*pool.length);
+            picked.push(pool.splice(idx,1)[0]);
+        }
+        const reacts=[n2,...picked];
+        const cx=reacts.reduce((s,m)=>s+m.x,0)/reacts.length;
+        const cy=reacts.reduce((s,m)=>s+m.y,0)/reacts.length;
+        reacts.forEach(m=>{m.targetX=cx+(Math.random()-0.5)*8;m.targetY=cy+(Math.random()-0.5)*8;m.approachSpeed=3;});
+        this.bondAnim={type:'forward',reactants:reacts,cx,cy,phase:'approach',age:0};
+        return true;
+    }
+
+    _tryRev() {
+        const nh3s=this.molecules.filter(m=>m.active&&m.type==='NH3');
+        if(nh3s.length<2) return false;
+        const a=nh3s[Math.floor(Math.random()*nh3s.length)];
+        const rest=nh3s.filter(m=>m!==a);
+        const b=rest[Math.floor(Math.random()*rest.length)];
+        const reacts=[a,b];
+        const cx=(a.x+b.x)/2, cy=(a.y+b.y)/2;
+        reacts.forEach(m=>{m.targetX=cx+(Math.random()-0.5)*7;m.targetY=cy+(Math.random()-0.5)*7;m.approachSpeed=3;});
+        this.bondAnim={type:'reverse',reactants:reacts,cx,cy,phase:'approach',age:0};
+        return true;
+    }
+
+    _updateBondAnim() {
+        const ba=this.bondAnim; if(!ba) return;
+        ba.age++;
+        if(ba.phase==='approach'){
+            const done=ba.reactants.every(m=>{
+                const dx=(m.targetX||m.x)-m.x, dy=(m.targetY||m.y)-m.y;
+                return Math.sqrt(dx*dx+dy*dy)<6;
+            });
+            if(done||ba.age>42){
+                ba.reactants.forEach(m=>{m.active=false;m.targetX=null;});
+                ba.phase='flash'; ba.age=0;
+                this.effects.push(new ReactionEffect(ba.cx,ba.cy,ba.type==='forward'?'form':'break'));
+            }
+        } else if(ba.phase==='flash'){
+            if(ba.age>32){
+                this.molecules=this.molecules.filter(m=>!ba.reactants.includes(m));
+                if(ba.type==='forward'){
+                    // 재고 소비
+                    if(!this.isInit) consumeForReaction();
+                    for(let i=0;i<2;i++){
+                        const nm=new Molecule('NH3',ba.cx+(i?18:-18),ba.cy);
+                        nm.vx=(Math.random()-0.5)*2; nm.vy=(Math.random()-0.5)*2;
+                        this.molecules.push(nm);
+                    }
+                    this.fwdCount++;
+                } else {
+                    // 역반응: N2/H2 재생
+                    if(!this.isInit) recoverFromReverse();
+                    const nm=new Molecule('N2',ba.cx,ba.cy-14);
+                    nm.vx=(Math.random()-0.5)*2; nm.vy=-1-Math.random();
+                    this.molecules.push(nm);
+                    for(let i=0;i<3;i++){
+                        const ag=(i/3)*Math.PI*2;
+                        const hm=new Molecule('H2',ba.cx+Math.cos(ag)*20,ba.cy+Math.sin(ag)*20);
+                        hm.vx=Math.cos(ag)*1.5; hm.vy=Math.sin(ag)*1.5;
+                        this.molecules.push(hm);
+                    }
+                    this.revCount++;
+                }
+                this.bondAnim=null;
+            }
+        }
+    }
+
+    _scheduleRxn() {
+        if(this.bondAnim) return;
+        if(this.rxnCD>0){this.rxnCD--;return;}
+        const nh3=this._cnt('NH3'),n2=this._cnt('N2'),h2=this._cnt('H2');
+        const tNH3=this.targetNH3;
+        let fP=0.5,rP=0.5;
+        if(nh3<tNH3){fP=0.72;rP=0.28;}
+        else if(nh3>tNH3+2){fP=0.28;rP=0.72;}
+
+        // 재고 부족이면 정반응 비율 감소
+        if(!this.isInit && (n2Stock<1||h2Stock<3)){
+            fP=0.05; rP=0.95;
+        }
+
+        const canF=n2>=1&&h2>=3, canR=nh3>=2;
+        let ok=false;
+        if(canF&&canR) ok=Math.random()<fP?this._tryFwd():this._tryRev();
+        else if(canF) ok=this._tryFwd();
+        else if(canR) ok=this._tryRev();
+        const tF=0.5+(this.temp/700)*1.5;
+        const pF=0.5+(this.press/500)*1.0;
+        this.rxnInt=Math.max(22,Math.round(75/(tF*pF)));
+        this.rxnCD=ok?this.rxnInt:18;
+    }
+
+    _drawBg() {
+        const ctx=this.ctx;
+        const bg=ctx.createRadialGradient(this.W/2,this.H*0.35,8,this.W/2,this.H/2,this.H*0.72);
+        bg.addColorStop(0,'rgba(30,30,75,0.88)'); bg.addColorStop(1,'rgba(4,4,16,0.97)');
+        ctx.fillStyle=bg; ctx.fillRect(0,0,this.W,this.H);
+        const tr=(this.temp-100)/600;
+        if(tr>0){
+            const hg=ctx.createRadialGradient(this.W/2,this.H,4,this.W/2,this.H,this.H*0.85);
+            hg.addColorStop(0,`rgba(255,${Math.round(55*(1-tr))},0,${tr*0.28})`);
+            hg.addColorStop(1,'rgba(0,0,0,0)');
+            ctx.fillStyle=hg; ctx.fillRect(0,0,this.W,this.H);
+        }
+        const pr=(this.press-50)/450;
+        if(pr>0.05){
+            ctx.strokeStyle=`rgba(79,172,254,${pr*0.5})`;
+            ctx.lineWidth=2.5+pr*4.5; ctx.strokeRect(1,1,this.W-2,this.H-2);
+        }
+
+        // 공급 차단 오버레이 (실험군만)
+        if(!this.isInit && this.supplyHalted){
+            ctx.save();
+            ctx.fillStyle='rgba(180,0,0,0.08)';
+            ctx.fillRect(0,0,this.W,this.H);
+            ctx.restore();
+        }
+    }
+
+    _drawPipes() {
+        const ctx=this.ctx;
+        const pr=(this.press-50)/450;
+        const pA=0.3+pr*0.5;
+        const hasStock=!this.supplyHalted;
+
+        // N2 공급 파이프
+        ctx.save();
+        ctx.strokeStyle=hasStock?`rgba(100,150,255,${pA})`:'rgba(150,50,50,0.4)';
+        ctx.lineWidth=8;
+        ctx.beginPath(); ctx.moveTo(0,58); ctx.lineTo(30,58); ctx.stroke();
+        ctx.fillStyle=hasStock?`rgba(80,120,255,${pA*0.7})`:'rgba(150,50,50,0.5)';
+        ctx.beginPath(); ctx.arc(0,58,6,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle=hasStock?`rgba(170,200,255,${pA+0.2})`:'rgba(255,150,150,0.8)';
+        ctx.font='bold 8px Arial'; ctx.textAlign='left'; ctx.textBaseline='middle';
+        ctx.fillText(hasStock?'N₂↓':'N₂✗',3,48);
+        ctx.restore();
+
+        // H2 공급 파이프
+        ctx.save();
+        ctx.strokeStyle=hasStock?`rgba(255,200,60,${pA})`:'rgba(150,50,50,0.4)';
+        ctx.lineWidth=8;
+        ctx.beginPath(); ctx.moveTo(0,108); ctx.lineTo(30,108); ctx.stroke();
+        ctx.fillStyle=hasStock?`rgba(255,180,40,${pA*0.7})`:'rgba(150,50,50,0.5)';
+        ctx.beginPath(); ctx.arc(0,108,6,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle=hasStock?`rgba(255,230,130,${pA+0.2})`:'rgba(255,150,150,0.8)';
+        ctx.font='bold 8px Arial'; ctx.textAlign='left'; ctx.textBaseline='middle';
+        ctx.fillText(hasStock?'H₂↓':'H₂✗',3,98);
+        ctx.restore();
+
+        // 재고 부족 경고 텍스트
+        if(!this.isInit && this.supplyHalted){
+            ctx.save();
+            ctx.fillStyle='rgba(255,100,100,0.9)';
+            ctx.font='bold 11px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText('⛔ 공급 중단',this.W/2,22);
+            ctx.font='9px Arial';
+            ctx.fillText('N₂ 또는 H₂ 재고 소진',this.W/2,36);
+            ctx.restore();
+        }
+
+        // NH3 배출 파이프
+        const yR=this.yieldVal/100;
+        ctx.save();
+        ctx.strokeStyle=`rgba(100,255,220,${0.3+yR*0.6})`;
+        ctx.lineWidth=8;
+        ctx.beginPath(); ctx.moveTo(this.W-30,this.H/2); ctx.lineTo(this.W,this.H/2); ctx.stroke();
+        ctx.fillStyle=`rgba(80,230,200,${(0.3+yR*0.6)*0.7})`;
+        ctx.beginPath(); ctx.arc(this.W,this.H/2,6,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle=`rgba(100,255,220,${0.5+yR*0.4})`;
+        ctx.font='bold 8px Arial'; ctx.textAlign='right'; ctx.textBaseline='middle';
+        ctx.fillText('NH₃→',this.W-4,this.H/2-11);
+        ctx.restore();
+
+        // 재순환 파이프
+        ctx.save();
+        ctx.strokeStyle='rgba(150,150,150,0.38)';
+        ctx.lineWidth=3; ctx.setLineDash([5,4]);
+        ctx.beginPath();
+        ctx.moveTo(this.W-20,14); ctx.lineTo(this.W/2,14); ctx.lineTo(22,14);
+        ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle='rgba(160,160,160,0.45)';
+        ctx.font='8px Arial'; ctx.textAlign='center'; ctx.textBaseline='top';
+        ctx.fillText('미반응 재순환',this.W/2,4);
+        ctx.restore();
+    }
+
+    _drawPressArrows() {
+        const pr=(this.press-50)/450;
+        if(pr<0.05) return;
+        const ctx=this.ctx;
+        const cnt=Math.ceil(pr*3), al=0.22+pr*0.48;
+        const col=`rgba(79,172,254,${al})`;
+        ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=1.5;
+        const aLen=12+pr*9;
+        const dirs=[
+            {x:14,y:this.H/2,dx:1,dy:0},
+            {x:this.W-14,y:this.H/2,dx:-1,dy:0},
+            {x:this.W/2,y:14,dx:0,dy:1},
+            {x:this.W/2,y:this.H-14,dx:0,dy:-1}
+        ];
+        dirs.forEach(d=>{
+            for(let c=0;c<cnt;c++){
+                const off=c*6;
+                const sx=d.x+d.dx*off, sy=d.y+d.dy*off;
+                const ex=sx+d.dx*aLen, ey=sy+d.dy*aLen;
+                ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,ey); ctx.stroke();
+                const ang=Math.atan2(d.dy,d.dx);
+                ctx.beginPath(); ctx.moveTo(ex,ey);
+                ctx.lineTo(ex-5*Math.cos(ang-0.4),ey-5*Math.sin(ang-0.4));
+                ctx.lineTo(ex-5*Math.cos(ang+0.4),ey-5*Math.sin(ang+0.4));
+                ctx.closePath(); ctx.fill();
+            }
+        });
+    }
+
+    _drawTempWaves() {
+        const tr=(this.temp-100)/600;
+        if(tr<0.05) return;
+        const ctx=this.ctx, t=Date.now()/1000, cnt=Math.ceil(tr*4);
+        for(let i=0;i<cnt;i++){
+            const ph=((t*0.65+i/cnt)%1);
+            const r=ph*44, al=(1-ph)*tr*0.42;
+            ctx.strokeStyle=`rgba(255,${Math.round(120*(1-tr))},0,${al})`;
+            ctx.lineWidth=1.5;
+            ctx.beginPath(); ctx.arc(this.W/2,this.H-12,r,0,Math.PI*2); ctx.stroke();
+        }
+    }
+
+    _drawBondFlash() {
+        const ba=this.bondAnim; if(!ba||ba.phase!=='flash') return;
+        const p=ba.age/32, al=p<0.5?p*2:(1-p)*2;
+        const col=ba.type==='forward'?'#43e97b':'#ff6464';
+        const ctx=this.ctx;
+        ctx.save(); ctx.globalAlpha=al*0.55;
+        const burst=ctx.createRadialGradient(ba.cx,ba.cy,0,ba.cx,ba.cy,32*p+4);
+        burst.addColorStop(0,col); burst.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=burst; ctx.beginPath(); ctx.arc(ba.cx,ba.cy,32*p+4,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+        ctx.save(); ctx.globalAlpha=al; ctx.fillStyle=col;
+        ctx.font=`bold ${10+p*2}px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(ba.type==='forward'?'⚡ 결합! (정반응)':'💥 분해! (역반응)',ba.cx,ba.cy-20);
+        ctx.font='7px Arial'; ctx.fillStyle='#fff';
+        ctx.fillText(ba.type==='forward'?'N₂+3H₂ → 2NH₃':'2NH₃ → N₂+3H₂',ba.cx,ba.cy+18);
+        ctx.restore();
+    }
+
+    _drawApproachLines() {
+        const ba=this.bondAnim; if(!ba||ba.phase!=='approach') return;
+        const col=ba.type==='forward'?'rgba(67,233,123,0.35)':'rgba(255,100,100,0.35)';
+        const ctx=this.ctx;
+        ctx.strokeStyle=col; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+        ba.reactants.forEach(m=>{
+            if(!m.targetX) return;
+            ctx.beginPath(); ctx.moveTo(m.x,m.y); ctx.lineTo(m.targetX,m.targetY); ctx.stroke();
+        });
+        ctx.setLineDash([]);
+    }
+
+    _drawLabel() {
+        const ctx=this.ctx;
+        ctx.fillStyle='rgba(255,255,255,0.18)';
+        ctx.font='10px Arial'; ctx.textAlign='left'; ctx.textBaseline='top';
+        ctx.fillText(this.isInit
+            ?`초기: ${INIT_TEMP}°C / ${INIT_PRESS}atm`
+            :`현재: ${this.temp}°C / ${this.press}atm`,7,6);
+    }
+
+    _updateUI() {
+        const nh3=this._cnt('NH3'), n2=this._cnt('N2'), h2=this._cnt('H2');
+        const u=this.ui;
+        document.getElementById(u.nh3).textContent=nh3;
+        document.getElementById(u.n2).textContent=n2;
+        document.getElementById(u.h2).textContent=h2;
+        document.getElementById(u.fwd).textContent=this.fwdCount;
+        document.getElementById(u.rev).textContent=this.revCount;
+        const total=this.fwdCount+this.revCount;
+        if(total===0) return;
+        const fr=this.fwdCount/total;
+        const fEl=document.getElementById(u.fwdA);
+        const rEl=document.getElementById(u.revA);
+        const lEl=document.getElementById(u.eqL);
+        if(fr>0.6){
+            fEl.style.fontSize='1.3rem'; rEl.style.fontSize='0.8rem';
+            fEl.style.opacity='1'; rEl.style.opacity='0.4';
+            lEl.textContent='정반응 우세 ▶'; lEl.style.color='#43e97b';
+        } else if(fr<0.4){
+            fEl.style.fontSize='0.8rem'; rEl.style.fontSize='1.3rem';
+            fEl.style.opacity='0.4'; rEl.style.opacity='1';
+            lEl.textContent='◀ 역반응 우세'; lEl.style.color='#ff8888';
+        } else {
+            fEl.style.fontSize='1rem'; rEl.style.fontSize='1rem';
+            fEl.style.opacity='0.8'; rEl.style.opacity='0.8';
+            lEl.textContent='동적 평형 ⚖️'; lEl.style.color='#f9ca24';
+        }
+    }
+
+    _loop() {
+        const ctx=this.ctx;
+        ctx.clearRect(0,0,this.W,this.H);
+        this._drawBg();
+        this._drawTempWaves();
+        this._drawPipes();
+        this._drawPressArrows();
+        this._drawApproachLines();
+        const sm=this.isInit?0.45+(INIT_TEMP/700)*1.7:0.4+(this.temp/700)*1.7;
+        this._updateSupplyExhaust(sm);
+        this.molecules.forEach(m=>m.update(sm,this.W,this.H));
+        if(this.bondAnim) this._updateBondAnim();
+        this._scheduleRxn();
+        this.molecules.forEach(m=>m.draw(ctx));
+        this.supplyMols.forEach(m=>{
+            ctx.save(); ctx.translate(m.x,m.y); ctx.rotate(m.angle);
+            if(m.type==='N2') drawN2(ctx,0,0,m.alpha); else drawH2(ctx,0,0,m.alpha);
+            ctx.restore();
+        });
+        this.exhaustMols.forEach(m=>{
+            ctx.save(); ctx.translate(m.x,m.y); ctx.rotate(m.angle);
+            drawNH3(ctx,0,0,m.alpha); ctx.restore();
+        });
+        this._drawBondFlash();
+        this.effects=this.effects.filter(e=>!e.done);
+        this.effects.forEach(e=>{e.update();e.draw(ctx);});
+        this._drawLabel();
+        this._updateUI();
+        requestAnimationFrame(()=>this._loop());
+    }
+}
+
+// ════════════════════════════════════════════
+//  초기화
+// ════════════════════════════════════════════
+const initSim=new VesselSim('cvInit',true,{
+    nh3:'iNH3',n2:'iN2',h2:'iH2',
+    fwd:'iFwd',rev:'iRev',
+    fwdA:'iFwdA',revA:'iRevA',eqL:'iEqL'
+});
+const currSim=new VesselSim('cvCurr',false,{
+    nh3:'cNH3',n2:'cN2',h2:'cH2',
+    fwd:'cFwd',rev:'cRev',
+    fwdA:'cFwdA',revA:'cRevA',eqL:'cEqL'
+});
+
+// ════════════════════════════════════════════
+//  슬라이더 / UI
+// ════════════════════════════════════════════
+function calcYield(t,p){
+    const tE=(INIT_TEMP-t)/600*55;
+    const pE=(p-INIT_PRESS)/450*45;
+    return Math.round(Math.max(2,Math.min(98,INIT_YIELD+tE+pE))*10)/10;
+}
+function getTSym(t){
+    const r=(t-100)/600;
+    return r<0.25?'~>':r<0.5?'~~>':r<0.75?'~~~>':'~~~~>';
+}
+function getPSym(p){
+    const r=(p-50)/450;
+    return r<0.25?'→':r<0.5?'→→':r<0.75?'→→→':'→→→→';
+}
+
+function updateAll(){
+    const temp=parseInt(document.getElementById('tempSlider').value);
+    const press=parseInt(document.getElementById('pressSlider').value);
+    const curY=calcYield(temp,press);
+
+    document.getElementById('tempVal').textContent=temp+' °C';
+    document.getElementById('pressVal').textContent=press+' atm';
+    document.getElementById('tSym').textContent=getTSym(temp);
+    document.getElementById('pSym').textContent=getPSym(press);
+    document.getElementById('currCL').textContent=`${temp}°C / ${press} atm`;
+    document.getElementById('svgTemp').textContent=temp+'°C';
+    document.getElementById('svgPress').textContent=press+'atm';
+    document.getElementById('svgSepEff').textContent=curY+'%';
+
+    let tC='hn',tS='기준',tL='기준 온도(400°C)입니다.';
+    if(temp>INIT_TEMP){tC='hu';tS='온도↑ → 역반응 우세';tL=`온도 상승 → 흡열(역반응) → NH₃ 감소`;}
+    else if(temp<INIT_TEMP){tC='hd';tS='온도↓ → 정반응 우세';tL=`온도 하강 → 발열(정반응) → NH₃ 증가`;}
+    document.getElementById('tShort').textContent=tS;
+    const tB=document.getElementById('tHint'); tB.textContent=tL; tB.className=`hint-box ${tC}`;
+
+    let pC='hn',pS='기준',pL='기준 압력(200atm)입니다.';
+    if(press>INIT_PRESS){pC='hu';pS='압력↑ → 정반응 우세';pL=`압력 상승 → 분자수↓(정반응) → NH₃ 증가`;}
+    else if(press<INIT_PRESS){pC='hd';pS='압력↓ → 역반응 우세';pL=`압력 하강 → 분자수↑(역반응) → NH₃ 감소`;}
+    document.getElementById('pShort').textContent=pS;
+    const pB=document.getElementById('pHint'); pB.textContent=pL; pB.className=`hint-box ${pC}`;
+
+    currSim.setConditions(temp,press,curY);
+
+    const iP=(INIT_YIELD/100)*140;
+    const cP=(curY/100)*140;
+    document.getElementById('bInit').style.height=iP+'px';
+    document.getElementById('bCurr').style.height=cP+'px';
+    document.getElementById('bInitV').textContent=INIT_YIELD;
+    document.getElementById('bCurrV').textContent=curY;
+    const diff=Math.round((curY-INIT_YIELD)*10)/10;
+    const bEl=document.getElementById('bCurr');
+    bEl.className=diff>0.4?'bar bg':diff<-0.4?'bar br':'bar bs';
+    const dBox=document.getElementById('diffBox');
+    if(Math.abs(diff)<0.5){dBox.textContent='✅ 초기값과 동일';dBox.className='diff-box dz';}
+    else if(diff>0){dBox.textContent=`📈 대조군 대비 +${diff} 증가`;dBox.className='diff-box dp';}
+    else{dBox.textContent=`📉 대조군 대비 ${diff} 감소`;dBox.className='diff-box dn';}
+
+    // 분석
+    const stockStatus = (n2Stock<=0||h2Stock<3)
+        ? `<br><br>⛔ <b style='color:#ff6666'>공급 중단:</b> ` +
+          (n2Stock<=0?'N₂ 재고 소진! ':'') +
+          (h2Stock<3?'H₂ 재고 부족! ':'') +
+          `버튼으로 재고를 보충하세요.`
+        : '';
+
+    let h='';
+    h+=`🌡️ <b>온도:</b> ${temp}°C `;
+    if(temp>INIT_TEMP) h+=`(+${temp-INIT_TEMP}°C) → 흡열(역반응) → NH₃ <span style='color:#ffaaaa'>감소</span><br>`;
+    else if(temp<INIT_TEMP) h+=`(${temp-INIT_TEMP}°C) → 발열(정반응) → NH₃ <span style='color:#7fff9a'>증가</span><br>`;
+    else h+=`(변화 없음)<br>`;
+    h+=`🔵 <b>압력:</b> ${press}atm `;
+    if(press>INIT_PRESS) h+=`(+${press-INIT_PRESS}atm) → 분자수↓ → NH₃ <span style='color:#7fff9a'>증가</span><br>`;
+    else if(press<INIT_PRESS) h+=`(${press-INIT_PRESS}atm) → 분자수↑ → NH₃ <span style='color:#ffaaaa'>감소</span><br>`;
+    else h+=`(변화 없음)<br>`;
+    h+=`<br>📦 <b>N₂ 재고:</b> ${n2Stock.toFixed(1)} mol / ${N2_MAX} mol &nbsp; `;
+    h+=`<b>H₂ 재고:</b> ${h2Stock.toFixed(1)} mol / ${H2_MAX} mol`;
+    h+=stockStatus;
+    document.getElementById('analysisText').innerHTML=h;
+
+    updateStockUI();
+}
+
+function resetAll(){
+    document.getElementById('tempSlider').value=INIT_TEMP;
+    document.getElementById('pressSlider').value=INIT_PRESS;
+    n2Stock=100; h2Stock=300;
+    totalN2Used=0; totalH2Used=0; totalNH3Made=0;
+    updateAll();
+}
+
+document.getElementById('tempSlider').addEventListener('input',updateAll);
+document.getElementById('pressSlider').addEventListener('input',updateAll);
+
+// 초기 UI
+updateAll();
+updateStockUI();
+</script>
+</body>
+</html>
